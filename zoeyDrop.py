@@ -2,19 +2,9 @@ import time
 import picokeypad
 
 keypad = picokeypad.PicoKeypad()
-keypad.set_brightness(1.0)
 
-
-lit = 0
-
-colour_index = 0
-
-NUM_PADS = keypad.get_num_pads()
-
-
-
-
-
+# got tired of trying to remember the linear button numbers.
+# made this map to make it easier to initialize the grid
 keyNumToGrid = {
     0: (0, 0),
     1: (0, 1),
@@ -34,6 +24,7 @@ keyNumToGrid = {
     15: (3, 3)
 }
 
+#default state of the grid
 gridToColors = {
     (0, 0): (255, 128, 0),
     (0, 1): (255, 128, 0),
@@ -58,6 +49,7 @@ gridToColors = {
 initialGridState = {}
 gridState = {}
 
+# automatically determine if the key is on or off
 for coord in gridToColors.keys():
     if(gridToColors[coord] != (0, 0, 0)):
         initialGridState[coord] = True
@@ -66,11 +58,14 @@ for coord in gridToColors.keys():
         initialGridState[coord] = None
         gridState[coord] = None
 
-
+# rather than just turn off the keys, dim them to a percentage.
+# this lets you know which keys are not used vs are in use and already pressed.
+# Thanks for the idea Tanner!
 dimPercentage = .05
 
 NUM_PADS = keypad.get_num_pads()
 
+# the bottom right key is a sleep key in case the lights are bothersome when not in a drop session
 def sleepKeypad():
     keypad.clear()
 
@@ -84,13 +79,11 @@ def wakeKeypad():
             keypad.illuminate(key, 0,0,0)
     keypad.update()
 
-# The colour to set the keys when pressed, yellow.
-
 isAsleep = False
-# Attach handler functions to all of the keys
 
+#this handles all key presses
 def press_handler(keyPressed):
-    #sleep key pressed
+    #sleep key pressed, bottom right
     if keyPressed == 15:
         global isAsleep
         if(isAsleep == True):
@@ -99,7 +92,7 @@ def press_handler(keyPressed):
         else:
             sleepKeypad()
             isAsleep = True
-    #reset key pressed
+    #reset key pressed, right above the sleep key
     elif keyPressed == 11:
         for key in range(NUM_PADS):
             if(initialGridState[keyNumToGrid[key]]):
@@ -110,6 +103,7 @@ def press_handler(keyPressed):
                 keypad.illuminate(key, 0,0,0)
 
     #any of the other keys pressed
+    # None keys are not in use. The other keys have a True: full brightness, False: dimmed state
     else:
         if(gridState[keyNumToGrid[keyPressed]] != None):
             dimAmount = dimPercentage if gridState[keyNumToGrid[keyPressed]] else 1.0
@@ -122,15 +116,16 @@ last_buttons = 0
 wakeKeypad()
 
 while True:
+    # don't do any work if there weren't any key presses or releases this cycle
     current_buttons = keypad.get_button_states()
     if last_buttons != current_buttons:
+        # if there were button state changes, do some binary math to get which ones have changed
         changed_buttons = current_buttons ^ last_buttons
         pressed_buttons = current_buttons & changed_buttons
         released_buttons =  last_buttons & changed_buttons
         last_buttons = current_buttons
-        
-        print()
-        
+
+        # do some work to convert the binary state results into a usable array of buttons pressed
         pressed_buttons_indices = []
         index = 0
         while pressed_buttons:
@@ -140,7 +135,10 @@ while True:
             index = index + 1
             
         for button in pressed_buttons_indices:
+            # run the key handler for each button pressed
             press_handler(button)
         
+        # no led's change unless you actually call this update to write the data across the pins
         keypad.update()
+        # sleep so this doesn't run full bore when I'm actually just pushing 10 buttons a day
         time.sleep(.1)
